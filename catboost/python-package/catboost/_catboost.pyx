@@ -41,6 +41,7 @@ np.import_array()
 cimport cython
 from cpython cimport PyList_GET_ITEM, PyTuple_GET_ITEM, PyFloat_AsDouble
 from cython.operator cimport dereference, preincrement
+from cpython cimport bool as py_bool
 
 from libc.math cimport isnan, modf
 from libc.stdint cimport uint32_t, uint64_t
@@ -163,7 +164,7 @@ class _NumpyAwareEncoder(JSONEncoder):
         if np.issubdtype(type(obj), np.floating):
             return float(obj)
         if isinstance(obj, self.bool_types):
-            return bool(obj)
+            return py_bool(obj)
         if isinstance(obj, self.tolist_types):
             return obj.tolist()
         return JSONEncoder.default(self, obj)
@@ -2081,11 +2082,11 @@ cdef _prepare_cv_result(metric_name, const TVector[ui32]& iterations,
     return result
 
 
-cdef inline bool_t is_np_int_type(type obj_type):
+cdef inline py_bool is_np_int_type(type obj_type):
     return obj_type is _npint32 or obj_type is _npint64 or obj_type is _npint8 or obj_type is _npint16
 
 
-cdef inline bool_t is_np_uint_type(type obj_type):
+cdef inline py_bool is_np_uint_type(type obj_type):
     return obj_type is _npuint32 or obj_type is _npuint64 or obj_type is _npuint8 or obj_type is _npuint16
 
 
@@ -2100,7 +2101,6 @@ cdef inline get_id_object_bytes_string_representation(
         Internal CatBoostError is typically catched up the calling stack to provide more detailed error
         description.
     """
-    cdef double double_val
     cdef type obj_type = type(id_object)
 
     # For some reason Cython does not allow assignment to dereferenced pointer, so we are using ptr[0] trick
@@ -3954,7 +3954,7 @@ def _set_label_from_num_nparray_objects_order(
             builder_visitor[0].AddTarget(target_idx, object_idx, <float>label[object_idx][target_idx])
 
 cdef ERawTargetType _py_target_type_to_raw_target_data(py_label_type) noexcept:
-    if py_label_type in (bool, np.bool_):
+    if py_label_type in (py_bool, np.bool_):
         return ERawTargetType_Boolean
     elif np.issubdtype(py_label_type, np.floating):
         return ERawTargetType_Float
@@ -5942,7 +5942,7 @@ cpdef _cv(dict params, _PoolBase pool, int fold_count, bool_t inverted, int part
         results_output = cv_results
     if return_models:
         cv_models = []
-        cvFullModels = results.front().CVFullModels
+        cvFullModels = move(results.front().CVFullModels)
         for i in xrange(cvFullModels.size()):
             catboost_model = _CatBoost()
             catboost_model.__model.Swap(cvFullModels[i])
